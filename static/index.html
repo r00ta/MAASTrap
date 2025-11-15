@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAASTrap - MAAS Bootstrap Configuration</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 MAASTrap</h1>
+            <p class="subtitle">Bootstrap your datacenter with MAAS</p>
+        </header>
+
+        <div class="content">
+            <section class="config-section">
+                <h2>System Configuration</h2>
+                <div class="form-group">
+                    <label for="hostname">Hostname:</label>
+                    <input type="text" id="hostname" placeholder="maas-region" value="maas-region">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="timezone">Timezone:</label>
+                        <input type="text" id="timezone" placeholder="UTC" value="UTC">
+                    </div>
+                    <div class="form-group">
+                        <label for="locale">Locale:</label>
+                        <input type="text" id="locale" placeholder="en_US.UTF-8" value="en_US.UTF-8">
+                    </div>
+                </div>
+            </section>
+
+            <section class="config-section">
+                <h2>MAAS Configuration</h2>
+                <div class="form-group">
+                    <label for="maas-username">Admin Username:</label>
+                    <input type="text" id="maas-username" placeholder="admin" value="admin">
+                </div>
+                <div class="form-group">
+                    <label for="maas-email">Admin Email:</label>
+                    <input type="email" id="maas-email" placeholder="admin@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="maas-password">Admin Password:</label>
+                    <input type="password" id="maas-password" placeholder="Enter password">
+                </div>
+                <div class="form-group">
+                    <label for="maas-region">Region Name:</label>
+                    <input type="text" id="maas-region" placeholder="maas-region" value="maas-region">
+                </div>
+            </section>
+
+            <section class="config-section">
+                <h2>Network Interfaces</h2>
+                <div id="interfaces-container">
+                    <!-- Interfaces will be added here dynamically -->
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addInterface()">+ Add Interface</button>
+            </section>
+
+            <section class="actions">
+                <button type="button" class="btn btn-primary" onclick="generateConfig()">Generate Autoinstall Config</button>
+            </section>
+
+            <section id="output-section" class="config-section" style="display: none;">
+                <h2>Generated Configuration</h2>
+                <div class="output-actions">
+                    <button type="button" class="btn btn-secondary" onclick="copyToClipboard()">📋 Copy to Clipboard</button>
+                    <button type="button" class="btn btn-secondary" onclick="downloadYAML()">💾 Download YAML</button>
+                </div>
+                <pre id="output"><code id="output-content"></code></pre>
+            </section>
+
+            <section id="error-section" class="error-message" style="display: none;">
+                <h3>❌ Error</h3>
+                <p id="error-content"></p>
+            </section>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
