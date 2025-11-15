@@ -9,7 +9,7 @@ region controller with custom network settings and DHCP configuration.
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 import yaml
 import os
@@ -33,7 +33,8 @@ class NetworkInterface(BaseModel):
     dns_servers: Optional[List[str]] = Field(default_factory=list, description="DNS server addresses")
     enable_dhcp: bool = Field(False, description="Enable DHCP on this network")
 
-    @validator('ip_address')
+    @field_validator('ip_address')
+    @classmethod
     def validate_ip(cls, v):
         """Validate IP address format"""
         if '/' not in v:
