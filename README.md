@@ -70,9 +70,12 @@ python app.py
 ## API Endpoints
 
 - `GET /`: Serve the web UI
+- `GET /docs`: Interactive API documentation (Swagger UI)
+- `GET /redoc`: Alternative API documentation (ReDoc)
 - `POST /api/generate`: Generate autoinstaller configuration
   - Accepts network configuration JSON
   - Returns cloud-init YAML configuration
+- `GET /api/health`: Health check endpoint
 
 ## Configuration Format
 
