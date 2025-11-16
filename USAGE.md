@@ -38,11 +38,12 @@ docker-compose up -d
 ## Using the Web Interface
 
 1. Open your browser and navigate to `http://localhost:8000`
-2. Fill in the system configuration
-3. Configure MAAS settings
-4. Add network interfaces
-5. Click "Generate Autoinstall Config"
-6. Download or copy the generated YAML
+2. Fill in the system configuration (hostname, timezone, locale)
+3. Configure MAAS settings (admin credentials, region name)
+4. Add network interfaces (IP addresses, gateways, DNS, DHCP settings)
+5. Click "Generate Autoinstall Config" to generate the cloud-init configuration
+6. **Optional**: Upload an Ubuntu 24.04 Server ISO and click "Generate ISO" to create a bootable autoinstall ISO
+7. Download or copy the generated YAML or ISO file
 
 ## Using the API
 
@@ -52,6 +53,15 @@ docker-compose up -d
 curl -X POST http://localhost:8000/api/generate \
   -H "Content-Type: application/json" \
   -d @examples/simple-config.json
+```
+
+### Generate Bootable ISO
+
+```bash
+curl -X POST http://localhost:8000/api/generate-iso \
+  -F "base_iso=@ubuntu-24.04-live-server-amd64.iso" \
+  -F "config_json=$(cat examples/simple-config.json)" \
+  -o maas-autoinstall.iso
 ```
 
 ### Health Check

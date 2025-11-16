@@ -65,6 +65,19 @@
                 <button type="button" class="btn btn-primary" onclick="generateConfig()">Generate Autoinstall Config</button>
             </section>
 
+            <section id="iso-section" class="config-section" style="display: none;">
+                <h2>Generate Bootable ISO</h2>
+                <p>Upload an Ubuntu 24.04 Server ISO to create a customized autoinstall ISO with your configuration.</p>
+                <div class="form-group">
+                    <label for="base-iso">Ubuntu 24.04 Server ISO:</label>
+                    <input type="file" id="base-iso" accept=".iso" />
+                </div>
+                <button type="button" class="btn btn-primary" onclick="generateISO()">🔥 Generate ISO</button>
+                <div id="iso-progress" style="display: none; margin-top: 15px;">
+                    <p>⏳ Generating ISO... This may take a few minutes.</p>
+                </div>
+            </section>
+
             <section id="output-section" class="config-section" style="display: none;">
                 <h2>Generated Configuration</h2>
                 <div class="output-actions">

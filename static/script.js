@@ -165,6 +165,7 @@ async function generateConfig() {
             generatedYAML = data.yaml;
             document.getElementById('output-content').textContent = generatedYAML;
             document.getElementById('output-section').style.display = 'block';
+            document.getElementById('iso-section').style.display = 'block';
             
             // Scroll to output
             document.getElementById('output-section').scrollIntoView({ behavior: 'smooth' });
@@ -172,6 +173,80 @@ async function generateConfig() {
             showError('Failed to generate configuration');
         }
     } catch (error) {
+        showError(error.message);
+    }
+}
+
+async function generateISO() {
+    const fileInput = document.getElementById('base-iso');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showError('Please select an Ubuntu 24.04 Server ISO file');
+        return;
+    }
+    
+    // Hide error section
+    document.getElementById('error-section').style.display = 'none';
+    
+    // Show progress
+    document.getElementById('iso-progress').style.display = 'block';
+    
+    // Collect form data (same as generateConfig)
+    const hostname = document.getElementById('hostname').value;
+    const timezone = document.getElementById('timezone').value;
+    const locale = document.getElementById('locale').value;
+    const maasUsername = document.getElementById('maas-username').value;
+    const maasEmail = document.getElementById('maas-email').value;
+    const maasPassword = document.getElementById('maas-password').value;
+    const maasRegion = document.getElementById('maas-region').value;
+    const interfaces = collectInterfaces();
+    
+    const config = {
+        hostname: hostname,
+        timezone: timezone,
+        locale: locale,
+        interfaces: interfaces,
+        maas_config: {
+            admin_username: maasUsername,
+            admin_email: maasEmail,
+            admin_password: maasPassword,
+            region_name: maasRegion
+        }
+    };
+    
+    // Create FormData
+    const formData = new FormData();
+    formData.append('base_iso', file);
+    formData.append('config_json', JSON.stringify(config));
+    
+    try {
+        const response = await fetch('/api/generate-iso', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to generate ISO');
+        }
+        
+        // Download the ISO
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `maas-autoinstall-${hostname}.iso`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        // Hide progress
+        document.getElementById('iso-progress').style.display = 'none';
+        alert('ISO generated successfully!');
+    } catch (error) {
+        document.getElementById('iso-progress').style.display = 'none';
         showError(error.message);
     }
 }

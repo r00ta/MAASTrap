@@ -75,6 +75,9 @@ python app.py
 - `POST /api/generate`: Generate autoinstaller configuration
   - Accepts network configuration JSON
   - Returns cloud-init YAML configuration
+- `POST /api/generate-iso`: Generate bootable ISO with embedded autoinstaller
+  - Accepts Ubuntu 24.04 base ISO and configuration JSON
+  - Returns customized bootable ISO file
 - `GET /api/health`: Health check endpoint
 
 ## Configuration Format

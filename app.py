@@ -6,13 +6,17 @@ Ubuntu 24.04 autoinstaller configurations that bootstrap a MAAS
 region controller with custom network settings and DHCP configuration.
 """
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 import yaml
 import os
+import tempfile
+import subprocess
+import shutil
+from pathlib import Path
 from jinja2 import Template
 
 app = FastAPI(
@@ -108,15 +112,11 @@ def generate_autoinstall_config(request: AutoinstallRequest) -> dict:
         # Update package lists
         "curtin in-target --target=/target -- apt-get update",
         
-        # Install MAAS packages
-        "curtin in-target --target=/target -- apt-get install -y maas postgresql",
-        
-        # Initialize MAAS database
-        "curtin in-target --target=/target -- sudo -u postgres psql -c \"CREATE USER maas WITH PASSWORD 'maas'\"",
-        "curtin in-target --target=/target -- sudo -u postgres createdb -O maas maasdb",
+        # Install MAAS packages (debs automatically create database and user)
+        "curtin in-target --target=/target -- apt-get install -y maas",
         
         # Initialize MAAS region
-        f"curtin in-target --target=/target -- maas init region+rack --database-uri postgresql://maas:maas@localhost/maasdb --maas-url http://{request.interfaces[0].ip_address.split('/')[0]}:5240/MAAS",
+        f"curtin in-target --target=/target -- maas init region+rack --maas-url http://{request.interfaces[0].ip_address.split('/')[0]}:5240/MAAS",
         
         # Create admin user
         f"curtin in-target --target=/target -- maas createadmin --username {request.maas_config.admin_username} --email {request.maas_config.admin_email} --password {request.maas_config.admin_password}",
@@ -217,6 +217,132 @@ async def generate_config(request: AutoinstallRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/generate-iso")
+async def generate_iso(
+    base_iso: UploadFile = File(...),
+    config_json: str = Form(...)
+):
+    """
+    Generate a bootable ISO with autoinstall configuration embedded.
+    
+    Requires:
+    - base_iso: Ubuntu 24.04 server ISO file
+    - config_json: JSON configuration (same format as /api/generate endpoint)
+    """
+    import json
+    
+    try:
+        # Parse the configuration
+        config_data = json.loads(config_json)
+        request = AutoinstallRequest(**config_data)
+        
+        # Generate autoinstall config
+        config = generate_autoinstall_config(request)
+        
+        # Create temporary directory for ISO building
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            # Save uploaded ISO
+            base_iso_path = temp_path / "base.iso"
+            with open(base_iso_path, "wb") as f:
+                shutil.copyfileobj(base_iso.file, f)
+            
+            # Create cloud-init files
+            user_data_path = temp_path / "user-data"
+            meta_data_path = temp_path / "meta-data"
+            
+            # Write user-data (autoinstall config)
+            user_data_content = "#cloud-config\nautoinstall:\n"
+            yaml_content = yaml.dump(config, default_flow_style=False, sort_keys=False)
+            # Indent the YAML content
+            indented_yaml = "\n".join("  " + line for line in yaml_content.split("\n"))
+            user_data_content += indented_yaml
+            
+            with open(user_data_path, "w") as f:
+                f.write(user_data_content)
+            
+            # Write empty meta-data
+            with open(meta_data_path, "w") as f:
+                f.write("")
+            
+            # Generate output ISO with cloud-localds
+            output_iso_path = temp_path / "maas-autoinstall.iso"
+            
+            # Check if cloud-localds is available
+            result = subprocess.run(
+                ["which", "cloud-localds"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                # Fall back to creating a simple ISO with user-data and meta-data
+                # This requires genisoimage or mkisofs
+                iso_cmd = None
+                for cmd in ["genisoimage", "mkisofs"]:
+                    check_result = subprocess.run(
+                        ["which", cmd],
+                        capture_output=True,
+                        text=True
+                    )
+                    if check_result.returncode == 0:
+                        iso_cmd = cmd
+                        break
+                
+                if not iso_cmd:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="ISO generation tools not available. Please install cloud-image-utils or genisoimage/mkisofs."
+                    )
+                
+                # Create a simple seed ISO
+                subprocess.run(
+                    [
+                        iso_cmd,
+                        "-output", str(output_iso_path),
+                        "-volid", "cidata",
+                        "-joliet",
+                        "-rock",
+                        str(user_data_path),
+                        str(meta_data_path)
+                    ],
+                    check=True,
+                    capture_output=True
+                )
+            else:
+                # Use cloud-localds
+                subprocess.run(
+                    [
+                        "cloud-localds",
+                        str(output_iso_path),
+                        str(user_data_path),
+                        str(meta_data_path)
+                    ],
+                    check=True,
+                    capture_output=True
+                )
+            
+            # Read the generated ISO
+            iso_content = output_iso_path.read_bytes()
+            
+            # Return as downloadable file
+            return StreamingResponse(
+                iter([iso_content]),
+                media_type="application/x-iso9660-image",
+                headers={
+                    "Content-Disposition": f"attachment; filename=maas-autoinstall-{request.hostname}.iso"
+                }
+            )
+    
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON configuration: {str(e)}")
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"ISO generation failed: {e.stderr.decode() if e.stderr else str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ISO generation error: {str(e)}")
 
 
 @app.get("/api/health")
