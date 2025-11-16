@@ -1,10 +1,55 @@
 // Global state
 let interfaceCounter = 0;
 let generatedYAML = '';
+let availableImages = [];
 
-// Initialize with one interface
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    addInterface();
+    loadAvailableImages();
+    addInterface(); // Add first interface by default
+});
+
+async function loadAvailableImages() {
+    try {
+        const response = await fetch('/api/images');
+        const images = await response.json();
+        availableImages = images;
+        
+        const select = document.getElementById('ubuntu-image');
+        select.innerHTML = '<option value="">Select Ubuntu version...</option>';
+        
+        images.forEach(img => {
+            const option = document.createElement('option');
+            option.value = img.id;
+            option.textContent = `${img.name} (${img.version})`;
+            option.dataset.maasVersions = JSON.stringify(img.maas_versions);
+            select.appendChild(option);
+        });
+    } catch (error) {
+        showError('Failed to load available Ubuntu images: ' + error.message);
+    }
+}
+
+document.getElementById('ubuntu-image').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const maasVersionSelect = document.getElementById('maas-version');
+    
+    if (!selectedOption.value) {
+        maasVersionSelect.disabled = true;
+        maasVersionSelect.innerHTML = '<option value="">Select MAAS version...</option>';
+        return;
+    }
+    
+    const maasVersions = JSON.parse(selectedOption.dataset.maasVersions || '[]');
+    maasVersionSelect.disabled = false;
+    maasVersionSelect.innerHTML = '<option value="">Select MAAS version...</option>';
+    
+    maasVersions.forEach(mv => {
+        const option = document.createElement('option');
+        option.value = mv.id;
+        option.textContent = `MAAS ${mv.version}`;
+        maasVersionSelect.appendChild(option);
+    });
 });
 
 function addInterface() {
@@ -12,42 +57,48 @@ function addInterface() {
     const container = document.getElementById('interfaces-container');
     
     const interfaceCard = document.createElement('div');
-    interfaceCard.className = 'interface-card';
+    interfaceCard.className = 'p-card';
     interfaceCard.id = `interface-${interfaceCounter}`;
+    interfaceCard.style.marginBottom = '1rem';
     
     interfaceCard.innerHTML = `
-        <h3>
-            <span>Interface ${interfaceCounter}</span>
-            <button type="button" class="btn btn-danger" onclick="removeInterface(${interfaceCounter})">🗑️ Remove</button>
-        </h3>
-        <div class="interface-grid">
-            <div class="form-group">
-                <label>Interface Name:</label>
-                <input type="text" id="iface-name-${interfaceCounter}" placeholder="eth0, ens192, etc." value="eth${interfaceCounter - 1}">
+        <div class="p-card__content">
+            <div class="u-clearfix">
+                <h3 class="p-card__title u-float-left">Interface ${interfaceCounter}</h3>
+                <button type="button" class="p-button--base has-icon u-float-right" onclick="removeInterface(${interfaceCounter})">
+                    <i class="p-icon--delete"></i>
+                    <span>Remove</span>
+                </button>
             </div>
-            <div class="form-group">
-                <label>IP Address (CIDR):</label>
-                <input type="text" id="iface-ip-${interfaceCounter}" placeholder="192.168.1.10/24">
-            </div>
-            <div class="form-group">
-                <label>Gateway (optional):</label>
-                <input type="text" id="iface-gateway-${interfaceCounter}" placeholder="192.168.1.1">
-            </div>
-            <div class="form-group">
-                <label>DNS Servers:</label>
-                <div class="dns-servers" id="dns-container-${interfaceCounter}">
-                    <div class="dns-server-group">
-                        <input type="text" id="dns-${interfaceCounter}-1" placeholder="8.8.8.8" value="8.8.8.8">
+            <form class="p-form p-form--stacked">
+                <div class="p-form__group row">
+                    <div class="col-6">
+                        <label for="iface-name-${interfaceCounter}">Interface Name:</label>
+                        <input class="p-form__control" type="text" id="iface-name-${interfaceCounter}" placeholder="eth0, ens192, etc." value="eth${interfaceCounter - 1}">
                     </div>
-                    <div class="dns-server-group">
-                        <input type="text" id="dns-${interfaceCounter}-2" placeholder="8.8.4.4" value="8.8.4.4">
+                    <div class="col-6">
+                        <label for="iface-ip-${interfaceCounter}">IP Address (CIDR):</label>
+                        <input class="p-form__control" type="text" id="iface-ip-${interfaceCounter}" placeholder="192.168.1.10/24">
                     </div>
                 </div>
-            </div>
-        </div>
-        <div class="checkbox-group">
-            <input type="checkbox" id="iface-dhcp-${interfaceCounter}">
-            <label for="iface-dhcp-${interfaceCounter}">Enable DHCP on this network</label>
+                <div class="p-form__group row">
+                    <div class="col-6">
+                        <label for="iface-gateway-${interfaceCounter}">Gateway (optional):</label>
+                        <input class="p-form__control" type="text" id="iface-gateway-${interfaceCounter}" placeholder="192.168.1.1">
+                    </div>
+                    <div class="col-6">
+                        <label>DNS Servers:</label>
+                        <input class="p-form__control" type="text" id="dns-${interfaceCounter}-1" placeholder="8.8.8.8" value="8.8.8.8" style="margin-bottom: 0.5rem;">
+                        <input class="p-form__control" type="text" id="dns-${interfaceCounter}-2" placeholder="8.8.4.4" value="8.8.4.4">
+                    </div>
+                </div>
+                <div class="p-form__group">
+                    <label class="p-checkbox">
+                        <input type="checkbox" id="iface-dhcp-${interfaceCounter}" class="p-checkbox__input">
+                        <span class="p-checkbox__label">Enable DHCP on this network</span>
+                    </label>
+                </div>
+            </form>
         </div>
     `;
     
@@ -64,7 +115,7 @@ function removeInterface(id) {
 function collectInterfaces() {
     const interfaces = [];
     const container = document.getElementById('interfaces-container');
-    const cards = container.querySelectorAll('.interface-card');
+    const cards = container.querySelectorAll('.p-card');
     
     cards.forEach(card => {
         const id = card.id.split('-')[1];
@@ -73,7 +124,6 @@ function collectInterfaces() {
         const gateway = document.getElementById(`iface-gateway-${id}`).value;
         const enableDhcp = document.getElementById(`iface-dhcp-${id}`).checked;
         
-        // Collect DNS servers
         const dnsServers = [];
         const dns1 = document.getElementById(`dns-${id}-1`).value;
         const dns2 = document.getElementById(`dns-${id}-2`).value;
@@ -95,10 +145,24 @@ function collectInterfaces() {
     return interfaces;
 }
 
-async function generateConfig() {
-    // Hide previous outputs
-    document.getElementById('output-section').style.display = 'none';
-    document.getElementById('error-section').style.display = 'none';
+async function generateISO() {
+    // Hide previous messages
+    document.getElementById('output-section').classList.add('hidden');
+    document.getElementById('error-section').classList.add('hidden');
+    
+    // Validate selections
+    const ubuntuImageId = document.getElementById('ubuntu-image').value;
+    const maasVersionId = document.getElementById('maas-version').value;
+    
+    if (!ubuntuImageId) {
+        showError('Please select an Ubuntu version');
+        return;
+    }
+    
+    if (!maasVersionId) {
+        showError('Please select a MAAS version');
+        return;
+    }
     
     // Collect form data
     const hostname = document.getElementById('hostname').value;
@@ -131,9 +195,10 @@ async function generateConfig() {
         return;
     }
     
-    // Prepare request
     const request = {
         hostname: hostname,
+        ubuntu_image_id: parseInt(ubuntuImageId),
+        maas_version_id: parseInt(maasVersionId),
         timezone: timezone,
         locale: locale,
         interfaces: interfaces,
@@ -145,8 +210,12 @@ async function generateConfig() {
         }
     };
     
+    // Show progress
+    document.getElementById('progress').classList.remove('hidden');
+    
     try {
-        const response = await fetch('/api/generate', {
+        // First generate the YAML config for display
+        const configResponse = await fetch('/api/generate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -154,85 +223,35 @@ async function generateConfig() {
             body: JSON.stringify(request)
         });
         
-        if (!response.ok) {
-            const error = await response.json();
+        if (!configResponse.ok) {
+            const error = await configResponse.json();
             throw new Error(error.detail || 'Failed to generate configuration');
         }
         
-        const data = await response.json();
+        const configData = await configResponse.json();
         
-        if (data.success) {
-            generatedYAML = data.yaml;
+        if (configData.success) {
+            generatedYAML = configData.yaml;
             document.getElementById('output-content').textContent = generatedYAML;
-            document.getElementById('output-section').style.display = 'block';
-            document.getElementById('iso-section').style.display = 'block';
-            
-            // Scroll to output
-            document.getElementById('output-section').scrollIntoView({ behavior: 'smooth' });
-        } else {
-            showError('Failed to generate configuration');
+            document.getElementById('output-section').classList.remove('hidden');
         }
-    } catch (error) {
-        showError(error.message);
-    }
-}
-
-async function generateISO() {
-    const fileInput = document.getElementById('base-iso');
-    const file = fileInput.files[0];
-    
-    if (!file) {
-        showError('Please select an Ubuntu 24.04 Server ISO file');
-        return;
-    }
-    
-    // Hide error section
-    document.getElementById('error-section').style.display = 'none';
-    
-    // Show progress
-    document.getElementById('iso-progress').style.display = 'block';
-    
-    // Collect form data (same as generateConfig)
-    const hostname = document.getElementById('hostname').value;
-    const timezone = document.getElementById('timezone').value;
-    const locale = document.getElementById('locale').value;
-    const maasUsername = document.getElementById('maas-username').value;
-    const maasEmail = document.getElementById('maas-email').value;
-    const maasPassword = document.getElementById('maas-password').value;
-    const maasRegion = document.getElementById('maas-region').value;
-    const interfaces = collectInterfaces();
-    
-    const config = {
-        hostname: hostname,
-        timezone: timezone,
-        locale: locale,
-        interfaces: interfaces,
-        maas_config: {
-            admin_username: maasUsername,
-            admin_email: maasEmail,
-            admin_password: maasPassword,
-            region_name: maasRegion
-        }
-    };
-    
-    // Create FormData
-    const formData = new FormData();
-    formData.append('base_iso', file);
-    formData.append('config_json', JSON.stringify(config));
-    
-    try {
-        const response = await fetch('/api/generate-iso', {
+        
+        // Now generate the ISO
+        const isoResponse = await fetch('/api/generate-iso', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(request)
         });
         
-        if (!response.ok) {
-            const error = await response.json();
+        if (!isoResponse.ok) {
+            const error = await isoResponse.json();
             throw new Error(error.detail || 'Failed to generate ISO');
         }
         
         // Download the ISO
-        const blob = await response.blob();
+        const blob = await isoResponse.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -243,38 +262,40 @@ async function generateISO() {
         URL.revokeObjectURL(url);
         
         // Hide progress
-        document.getElementById('iso-progress').style.display = 'none';
-        alert('ISO generated successfully!');
+        document.getElementById('progress').classList.add('hidden');
+        
+        // Scroll to output
+        document.getElementById('output-section').scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
-        document.getElementById('iso-progress').style.display = 'none';
+        document.getElementById('progress').classList.add('hidden');
         showError(error.message);
     }
 }
 
 function showError(message) {
     document.getElementById('error-content').textContent = message;
-    document.getElementById('error-section').style.display = 'block';
+    document.getElementById('error-section').classList.remove('hidden');
     document.getElementById('error-section').scrollIntoView({ behavior: 'smooth' });
 }
 
 function copyToClipboard() {
     const content = document.getElementById('output-content').textContent;
     navigator.clipboard.writeText(content).then(() => {
-        alert('Configuration copied to clipboard!');
+        // Show success notification
+        const notification = document.createElement('div');
+        notification.className = 'p-notification--positive';
+        notification.style.position = 'fixed';
+        notification.style.top = '1rem';
+        notification.style.right = '1rem';
+        notification.style.zIndex = '9999';
+        notification.innerHTML = `
+            <div class="p-notification__content">
+                <p class="p-notification__message">Configuration copied to clipboard!</p>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
     }).catch(err => {
-        alert('Failed to copy to clipboard: ' + err);
+        showError('Failed to copy to clipboard: ' + err);
     });
-}
-
-function downloadYAML() {
-    const content = document.getElementById('output-content').textContent;
-    const blob = new Blob([content], { type: 'text/yaml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'user-data.yaml';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
 }
