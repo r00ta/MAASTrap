@@ -464,10 +464,25 @@ async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db
                 with open(grub_cfg_path, "r") as f:
                     grub_content = f.read()
                 
-                # Add autoinstall parameter to the kernel command line
+                # Add autoinstall parameter to all kernel lines
+                # Note: semicolon must be escaped with backslash in grub.cfg
                 grub_content = grub_content.replace(
                     "linux\t/casper/vmlinuz",
-                    "linux\t/casper/vmlinuz autoinstall ds=nocloud;s=/cdrom/nocloud/"
+                    "linux\t/casper/vmlinuz autoinstall ds=nocloud\\;s=/cdrom/nocloud/"
+                )
+                grub_content = grub_content.replace(
+                    "linux /casper/vmlinuz",
+                    "linux /casper/vmlinuz autoinstall ds=nocloud\\;s=/cdrom/nocloud/"
+                )
+                
+                # Set default to boot automatically and reduce timeout
+                grub_content = grub_content.replace(
+                    "set timeout=30",
+                    "set timeout=5"
+                )
+                grub_content = grub_content.replace(
+                    "set timeout=-1",
+                    "set timeout=5"
                 )
                 
                 with open(grub_cfg_path, "w") as f:
@@ -479,13 +494,33 @@ async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db
                 with open(txt_cfg_path, "r") as f:
                     txt_content = f.read()
                 
+                # Add autoinstall to append lines
                 txt_content = txt_content.replace(
-                    "append",
-                    "append autoinstall ds=nocloud;s=/cdrom/nocloud/"
+                    "append ",
+                    "append autoinstall ds=nocloud;s=/cdrom/nocloud/ "
                 )
                 
                 with open(txt_cfg_path, "w") as f:
                     f.write(txt_content)
+            
+            # Also check for isolinux.cfg
+            isolinux_cfg_path = iso_extract_dir / "isolinux" / "isolinux.cfg"
+            if isolinux_cfg_path.exists():
+                with open(isolinux_cfg_path, "r") as f:
+                    isolinux_content = f.read()
+                
+                # Reduce timeout and add autoinstall
+                isolinux_content = isolinux_content.replace(
+                    "timeout 0",
+                    "timeout 50"  # 5 seconds (units are in deciseconds)
+                )
+                isolinux_content = isolinux_content.replace(
+                    "append ",
+                    "append autoinstall ds=nocloud;s=/cdrom/nocloud/ "
+                )
+                
+                with open(isolinux_cfg_path, "w") as f:
+                    f.write(isolinux_content)
             
             # Generate the modified ISO
             output_iso_path = temp_path / "maas-autoinstall.iso"
