@@ -394,14 +394,18 @@ async def generate_config(request: AutoinstallRequest, db: Session = Depends(get
 @app.post("/api/generate-iso")
 async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db)):
     """
-    Generate a bootable ISO with autoinstall configuration embedded.
-    Uses pre-configured Ubuntu image from database.
+    Generate a bootable Ubuntu autoinstall ISO with embedded configuration.
+    Modifies the base Ubuntu ISO to include autoinstall configuration.
     """
     try:
         # Get Ubuntu image
         ubuntu_image = db.query(UbuntuImage).filter(UbuntuImage.id == request.ubuntu_image_id).first()
         if not ubuntu_image:
             raise HTTPException(status_code=404, detail="Ubuntu image not found")
+        
+        # Check if base ISO exists
+        if not os.path.exists(ubuntu_image.iso_path):
+            raise HTTPException(status_code=404, detail="Base Ubuntu ISO file not found")
         
         # Get MAAS version info
         maas_version = db.query(MAASVersion).filter(MAASVersion.id == request.maas_version_id).first()
@@ -415,11 +419,32 @@ async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             
-            # Create cloud-init files
-            user_data_path = temp_path / "user-data"
-            meta_data_path = temp_path / "meta-data"
+            iso_extract_dir = temp_path / "iso_extract"
+            iso_extract_dir.mkdir()
+            
+            # Extract the base Ubuntu ISO
+            extract_result = subprocess.run(
+                ["xorriso", "-osirrox", "on", "-indev", ubuntu_image.iso_path, 
+                 "-extract", "/", str(iso_extract_dir)],
+                capture_output=True,
+                text=True
+            )
+            
+            if extract_result.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to extract base ISO: {extract_result.stderr}"
+                )
+            
+            # Make extracted files writable
+            subprocess.run(["chmod", "-R", "u+w", str(iso_extract_dir)], check=True)
+            
+            # Create autoinstall directory
+            autoinstall_dir = iso_extract_dir / "nocloud"
+            autoinstall_dir.mkdir(exist_ok=True)
             
             # Write user-data (autoinstall config)
+            user_data_path = autoinstall_dir / "user-data"
             user_data_content = "#cloud-config\nautoinstall:\n"
             yaml_content = yaml.dump(config, default_flow_style=False, sort_keys=False)
             indented_yaml = "\n".join("  " + line for line in yaml_content.split("\n"))
@@ -428,63 +453,82 @@ async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db
             with open(user_data_path, "w") as f:
                 f.write(user_data_content)
             
-            # Write empty meta-data
+            # Write meta-data
+            meta_data_path = autoinstall_dir / "meta-data"
             with open(meta_data_path, "w") as f:
-                f.write("")
+                f.write(f"instance-id: {request.hostname}\n")
             
-            # Generate output ISO with cloud-localds
+            # Modify grub configuration to add autoinstall boot option
+            grub_cfg_path = iso_extract_dir / "boot" / "grub" / "grub.cfg"
+            if grub_cfg_path.exists():
+                with open(grub_cfg_path, "r") as f:
+                    grub_content = f.read()
+                
+                # Add autoinstall parameter to the kernel command line
+                grub_content = grub_content.replace(
+                    "linux\t/casper/vmlinuz",
+                    "linux\t/casper/vmlinuz autoinstall ds=nocloud;s=/cdrom/nocloud/"
+                )
+                
+                with open(grub_cfg_path, "w") as f:
+                    f.write(grub_content)
+            
+            # Also modify isolinux/txt.cfg for BIOS boot
+            txt_cfg_path = iso_extract_dir / "isolinux" / "txt.cfg"
+            if txt_cfg_path.exists():
+                with open(txt_cfg_path, "r") as f:
+                    txt_content = f.read()
+                
+                txt_content = txt_content.replace(
+                    "append",
+                    "append autoinstall ds=nocloud;s=/cdrom/nocloud/"
+                )
+                
+                with open(txt_cfg_path, "w") as f:
+                    f.write(txt_content)
+            
+            # Generate the modified ISO
             output_iso_path = temp_path / "maas-autoinstall.iso"
             
-            # Check if cloud-localds is available
+            # Use xorriso to create the new ISO
+            xorriso_cmd = [
+                "xorriso",
+                "-as", "mkisofs",
+                "-r",
+                "-V", f"Ubuntu-Autoinstall-{ubuntu_image.codename}",
+                "-o", str(output_iso_path),
+                "-J", "-l",
+                "-b", "isolinux/isolinux.bin",
+                "-c", "isolinux/boot.cat",
+                "-no-emul-boot",
+                "-boot-load-size", "4",
+                "-boot-info-table",
+                "-eltorito-alt-boot",
+                "-e", "boot/grub/efi.img",
+                "-no-emul-boot",
+                "-isohybrid-gpt-basdat",
+                "-isohybrid-apm-hfsplus",
+                str(iso_extract_dir)
+            ]
+            
             result = subprocess.run(
-                ["which", "cloud-localds"],
+                xorriso_cmd,
                 capture_output=True,
                 text=True
             )
             
             if result.returncode != 0:
-                # Fall back to genisoimage
-                iso_cmd = None
-                for cmd in ["genisoimage", "mkisofs"]:
-                    check_result = subprocess.run(
-                        ["which", cmd],
-                        capture_output=True,
-                        text=True
-                    )
-                    if check_result.returncode == 0:
-                        iso_cmd = cmd
-                        break
-                
-                if not iso_cmd:
-                    raise HTTPException(
-                        status_code=500,
-                        detail="ISO generation tools not available. Please install cloud-image-utils or genisoimage/mkisofs."
-                    )
-                
-                subprocess.run(
-                    [
-                        iso_cmd,
-                        "-output", str(output_iso_path),
-                        "-volid", "cidata",
-                        "-joliet",
-                        "-rock",
-                        str(user_data_path),
-                        str(meta_data_path)
-                    ],
-                    check=True,
-                    capture_output=True
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to create ISO: {result.stderr}"
                 )
-            else:
-                subprocess.run(
-                    [
-                        "cloud-localds",
-                        str(output_iso_path),
-                        str(user_data_path),
-                        str(meta_data_path)
-                    ],
-                    check=True,
-                    capture_output=True
-                )
+            
+            # Make ISO hybrid (bootable from USB)
+            subprocess.run(
+                ["isohybrid", "--uefi", str(output_iso_path)],
+                capture_output=True,
+                check=False  # Don't fail if isohybrid is not available
+            )
             
             # Read the generated ISO
             iso_content = output_iso_path.read_bytes()
@@ -494,7 +538,7 @@ async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db
                 iter([iso_content]),
                 media_type="application/x-iso9660-image",
                 headers={
-                    "Content-Disposition": f"attachment; filename=maas-{ubuntu_image.codename}-{maas_version.version}-{request.hostname}.iso"
+                    "Content-Disposition": f"attachment; filename=ubuntu-{ubuntu_image.codename}-maas-{maas_version.version}-{request.hostname}-autoinstall.iso"
                 }
             )
     

@@ -2,11 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install ISO generation tools
+# Install ISO generation and manipulation tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     cloud-image-utils \
     genisoimage \
+    xorriso \
+    isolinux \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
