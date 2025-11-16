@@ -490,26 +490,49 @@ async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db
             # Generate the modified ISO
             output_iso_path = temp_path / "maas-autoinstall.iso"
             
-            # Use xorriso to create the new ISO
+            # Detect boot files
+            isolinux_bin = iso_extract_dir / "isolinux" / "isolinux.bin"
+            boot_cat = iso_extract_dir / "isolinux" / "boot.cat"
+            efi_img = iso_extract_dir / "boot" / "grub" / "efi.img"
+            
+            # Build xorriso command dynamically based on what's available
             xorriso_cmd = [
                 "xorriso",
                 "-as", "mkisofs",
                 "-r",
-                "-V", f"Ubuntu-Autoinstall-{ubuntu_image.codename}",
+                "-V", "Ubuntu-Server",  # Use simple volume ID that complies with ISO 9660
                 "-o", str(output_iso_path),
-                "-J", "-l",
-                "-b", "isolinux/isolinux.bin",
-                "-c", "isolinux/boot.cat",
-                "-no-emul-boot",
-                "-boot-load-size", "4",
-                "-boot-info-table",
-                "-eltorito-alt-boot",
-                "-e", "boot/grub/efi.img",
-                "-no-emul-boot",
-                "-isohybrid-gpt-basdat",
-                "-isohybrid-apm-hfsplus",
-                str(iso_extract_dir)
+                "-J", "-joliet-long",
+                "-cache-inodes",
             ]
+            
+            # Add BIOS boot if isolinux exists
+            if isolinux_bin.exists():
+                xorriso_cmd.extend([
+                    "-b", "isolinux/isolinux.bin",
+                    "-c", "isolinux/boot.cat",
+                    "-no-emul-boot",
+                    "-boot-load-size", "4",
+                    "-boot-info-table",
+                ])
+            
+            # Add UEFI boot if efi.img exists
+            if efi_img.exists():
+                if isolinux_bin.exists():
+                    xorriso_cmd.append("-eltorito-alt-boot")
+                xorriso_cmd.extend([
+                    "-e", "boot/grub/efi.img",
+                    "-no-emul-boot",
+                ])
+            
+            # Add isohybrid options if we have both boot methods
+            if isolinux_bin.exists() and efi_img.exists():
+                xorriso_cmd.extend([
+                    "-isohybrid-gpt-basdat",
+                ])
+            
+            # Add source directory
+            xorriso_cmd.append(str(iso_extract_dir))
             
             result = subprocess.run(
                 xorriso_cmd,
@@ -522,13 +545,6 @@ async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db
                     status_code=500,
                     detail=f"Failed to create ISO: {result.stderr}"
                 )
-            
-            # Make ISO hybrid (bootable from USB)
-            subprocess.run(
-                ["isohybrid", "--uefi", str(output_iso_path)],
-                capture_output=True,
-                check=False  # Don't fail if isohybrid is not available
-            )
             
             # Read the generated ISO
             iso_content = output_iso_path.read_bytes()
