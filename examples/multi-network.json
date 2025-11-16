@@ -1,0 +1,34 @@
+{
+  "hostname": "maas-controller",
+  "timezone": "America/New_York",
+  "locale": "en_US.UTF-8",
+  "interfaces": [
+    {
+      "name": "ens192",
+      "ip_address": "192.168.1.10/24",
+      "gateway": "192.168.1.1",
+      "dns_servers": ["8.8.8.8", "1.1.1.1"],
+      "enable_dhcp": true
+    },
+    {
+      "name": "ens224",
+      "ip_address": "10.0.1.10/24",
+      "gateway": null,
+      "dns_servers": [],
+      "enable_dhcp": true
+    },
+    {
+      "name": "ens256",
+      "ip_address": "172.16.0.10/24",
+      "gateway": null,
+      "dns_servers": [],
+      "enable_dhcp": false
+    }
+  ],
+  "maas_config": {
+    "admin_username": "admin",
+    "admin_email": "admin@datacenter.local",
+    "admin_password": "SecurePassword123!",
+    "region_name": "datacenter-maas"
+  }
+}

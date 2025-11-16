@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  maastrap:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./images:/app/images
+      - ./maastrap.db:/app/maastrap.db
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

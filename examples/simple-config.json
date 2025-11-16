@@ -1,0 +1,20 @@
+{
+  "hostname": "maas-region",
+  "timezone": "UTC",
+  "locale": "en_US.UTF-8",
+  "interfaces": [
+    {
+      "name": "eth0",
+      "ip_address": "192.168.1.10/24",
+      "gateway": "192.168.1.1",
+      "dns_servers": ["8.8.8.8", "8.8.4.4"],
+      "enable_dhcp": true
+    }
+  ],
+  "maas_config": {
+    "admin_username": "admin",
+    "admin_email": "admin@example.com",
+    "admin_password": "YourSecurePassword",
+    "region_name": "maas-region"
+  }
+}

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAASTrap - Admin Portal</title>
+    <!-- Vanilla Framework CSS -->
+    <link rel="stylesheet" href="https://assets.ubuntu.com/v1/vanilla-framework-version-4.15.0.min.css" />
+    <style>
+        .hidden { display: none; }
+        .u-no-margin--bottom { margin-bottom: 0 !important; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header id="navigation" class="p-navigation">
+        <div class="p-navigation__row">
+            <div class="p-navigation__banner">
+                <div class="p-navigation__tagged-logo">
+                    <a class="p-navigation__link" href="/">
+                        <div class="p-navigation__logo-tag">
+                            <img class="p-navigation__logo-icon" src="https://assets.ubuntu.com/v1/82818827-CoF_white.svg" alt="">
+                        </div>
+                        <span class="p-navigation__logo-title">MAASTrap Admin</span>
+                    </a>
+                </div>
+                <a href="#navigation" class="p-navigation__toggle--open" title="menu">Menu</a>
+                <a href="#navigation-closed" class="p-navigation__toggle--close" title="close menu">Close menu</a>
+            </div>
+            <nav class="p-navigation__nav" aria-label="Main navigation">
+                <ul class="p-navigation__items">
+                    <li class="p-navigation__item"><a href="/">Generate ISO</a></li>
+                    <li class="p-navigation__item is-selected"><a href="/admin">Admin Portal</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Login Section -->
+    <section id="login-section" class="p-strip">
+        <div class="row">
+            <div class="col-6 col-start-large-4">
+                <div class="p-card">
+                    <h2 class="p-card__title">Admin Login</h2>
+                    <div class="p-card__content">
+                        <form class="p-form p-form--stacked" id="login-form">
+                            <div class="p-form__group">
+                                <label for="username">Username:</label>
+                                <input class="p-form__control" type="text" id="username" required>
+                            </div>
+                            <div class="p-form__group">
+                                <label for="password">Password:</label>
+                                <input class="p-form__control" type="password" id="password" required>
+                            </div>
+                            <button type="submit" class="p-button--positive">Login</button>
+                        </form>
+                        <div id="login-error" class="p-notification--negative hidden" style="margin-top: 1rem;">
+                            <div class="p-notification__content">
+                                <p class="p-notification__message" id="login-error-message"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Admin Dashboard -->
+    <main id="admin-dashboard" class="hidden">
+        <!-- Ubuntu Images Management -->
+        <section class="p-strip">
+            <div class="row">
+                <h1>Ubuntu Images Management</h1>
+                <button type="button" class="p-button--positive" onclick="showAddImageModal()">Add Ubuntu Image</button>
+            </div>
+        </section>
+
+        <section class="p-strip is-shallow">
+            <div class="row">
+                <table class="p-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Version</th>
+                            <th>Codename</th>
+                            <th>MAAS Versions</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="images-table-body">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Add Image Modal -->
+        <div id="add-image-modal" class="p-modal hidden">
+            <div class="p-modal__dialog" role="dialog" aria-labelledby="add-image-title">
+                <header class="p-modal__header">
+                    <h2 class="p-modal__title" id="add-image-title">Add Ubuntu Image</h2>
+                    <button class="p-modal__close" aria-label="Close active modal" onclick="closeAddImageModal()">Close</button>
+                </header>
+                <form id="add-image-form" enctype="multipart/form-data">
+                    <div class="p-modal__body">
+                        <div class="p-form__group">
+                            <label for="image-name">Name:</label>
+                            <input class="p-form__control" type="text" id="image-name" placeholder="Ubuntu 22.04 LTS (Jammy)" required>
+                        </div>
+                        <div class="p-form__group">
+                            <label for="image-version">Version:</label>
+                            <input class="p-form__control" type="text" id="image-version" placeholder="22.04" required>
+                        </div>
+                        <div class="p-form__group">
+                            <label for="image-codename">Codename:</label>
+                            <input class="p-form__control" type="text" id="image-codename" placeholder="jammy" required>
+                        </div>
+                        <div class="p-form__group">
+                            <label for="image-file">ISO File:</label>
+                            <input type="file" id="image-file" accept=".iso" required>
+                        </div>
+                    </div>
+                    <footer class="p-modal__footer">
+                        <button type="button" class="p-button--base" onclick="closeAddImageModal()">Cancel</button>
+                        <button type="submit" class="p-button--positive">Upload Image</button>
+                    </footer>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add MAAS Version Modal -->
+        <div id="add-maas-version-modal" class="p-modal hidden">
+            <div class="p-modal__dialog" role="dialog" aria-labelledby="add-maas-title">
+                <header class="p-modal__header">
+                    <h2 class="p-modal__title" id="add-maas-title">Add MAAS Version</h2>
+                    <button class="p-modal__close" aria-label="Close active modal" onclick="closeAddMAASVersionModal()">Close</button>
+                </header>
+                <form id="add-maas-version-form">
+                    <div class="p-modal__body">
+                        <input type="hidden" id="maas-ubuntu-image-id">
+                        <div class="p-form__group">
+                            <label for="maas-version">MAAS Version:</label>
+                            <input class="p-form__control" type="text" id="maas-version" placeholder="3.2" required>
+                        </div>
+                        <div class="p-form__group">
+                            <label for="maas-ppa">PPA URL:</label>
+                            <input class="p-form__control" type="text" id="maas-ppa" placeholder="ppa:maas/3.2" required>
+                        </div>
+                    </div>
+                    <footer class="p-modal__footer">
+                        <button type="button" class="p-button--base" onclick="closeAddMAASVersionModal()">Cancel</button>
+                        <button type="submit" class="p-button--positive">Add MAAS Version</button>
+                    </footer>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/admin.js"></script>
+</body>
+</html>
