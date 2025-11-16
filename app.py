@@ -525,11 +525,16 @@ async def generate_iso(request: AutoinstallRequest, db: Session = Depends(get_db
                     "-no-emul-boot",
                 ])
             
-            # Add isohybrid options if we have both boot methods
-            if isolinux_bin.exists() and efi_img.exists():
+            # Add isohybrid options if we have both boot methods or just BIOS
+            if isolinux_bin.exists():
                 xorriso_cmd.extend([
-                    "-isohybrid-gpt-basdat",
+                    "-isohybrid-mbr", "/usr/lib/ISOLINUX/isohdpfx.bin",
                 ])
+                if efi_img.exists():
+                    xorriso_cmd.extend([
+                        "-isohybrid-gpt-basdat",
+                        "-isohybrid-apm-hfsplus",
+                    ])
             
             # Add source directory
             xorriso_cmd.append(str(iso_extract_dir))

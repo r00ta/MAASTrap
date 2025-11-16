@@ -9,6 +9,7 @@ RUN apt-get update && \
     genisoimage \
     xorriso \
     isolinux \
+    syslinux-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
